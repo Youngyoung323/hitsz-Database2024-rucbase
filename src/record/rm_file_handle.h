@@ -81,7 +81,11 @@ class RmFileHandle {
 
     void update_record(const Rid &rid, char *buf, Context *context);
 
-    RmPageHandle create_new_page_handle();
+    RmPageHandle create_new_page_handle(
+        //  用于创建一个新的RmPageHandle
+        //  用缓冲池创建新页，并更新page_hdr和file_hdr中的各项内容
+        //  提示：调用BufferPoolManager::new_page()创建新页面        
+    );
 
     RmPageHandle fetch_page_handle(int page_no) const;
 

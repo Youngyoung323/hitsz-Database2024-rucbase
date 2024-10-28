@@ -31,7 +31,11 @@ void DiskManager::write_page(int fd, page_id_t page_no, const char *offset, int 
     // 1.lseek()定位到文件头，通过(fd,page_no)可以定位指定页面及其在磁盘文件中的偏移量
     // 2.调用write()函数
     // 注意write返回值与num_bytes不等时 throw InternalError("DiskManager::write_page Error");
-
+    lseek(fd, page_no * PAGE_SIZE, SEEK_SET);  // page_no*page_size计算出页面在指定fd所代表文件中的起始位置的偏移量，该函数用于设置该文件描述符当前位置
+    int write_nums = write(fd, offset, num_bytes);              // 在指定文件描述符的当前位置进行写数据
+    if(write_nums != num_bytes) {
+        throw InternalError("DiskManager::write_page Error");
+    }
 }
 
 /**
@@ -46,6 +50,11 @@ void DiskManager::read_page(int fd, page_id_t page_no, char *offset, int num_byt
     // 1.lseek()定位到文件头，通过(fd,page_no)可以定位指定页面及其在磁盘文件中的偏移量
     // 2.调用read()函数
     // 注意read返回值与num_bytes不等时，throw InternalError("DiskManager::read_page Error");
+    lseek(fd, page_no * PAGE_SIZE, SEEK_SET);
+    int read_nums = read(fd, offset, num_bytes);
+    if(read_nums != num_bytes) {
+        throw InternalError("DiskManager::read_page Error");
+    }
 
 }
 
@@ -102,6 +111,12 @@ void DiskManager::create_file(const std::string &path) {
     // Todo:
     // 调用open()函数，使用O_CREAT模式
     // 注意不能重复创建相同文件
+    if(is_file(path)) {
+        throw FileExistsError(path);
+    }
+    int fd = open(path.c_str(), O_CREAT, S_IRUSR | S_IWUSR);  // 创建文件，创造后的文件允许自身进行读写
+    close(fd);  
+
 }
 
 /**
@@ -112,7 +127,13 @@ void DiskManager::destroy_file(const std::string &path) {
     // Todo:
     // 调用unlink()函数
     // 注意不能删除未关闭的文件
-    
+    if(!is_file(path)) {  // 文件不存在
+        throw FileNotFoundError(path);
+    }
+    if(path2fd_.count(path)) {  // 文件未关闭,哈希表查找映射的fd
+        throw FileNotClosedError(path);
+    }
+    unlink(path.c_str());   // 参数类型为const char*
 }
 
 
@@ -125,7 +146,18 @@ int DiskManager::open_file(const std::string &path) {
     // Todo:
     // 调用open()函数，使用O_RDWR模式
     // 注意不能重复打开相同文件，并且需要更新文件打开列表
-
+    if(!is_file(path)) {  // 文件不存在
+        throw FileNotFoundError(path);
+    }
+    if(path2fd_.count(path)) {  // 文件已经打开哈希表查找映射的fd
+        throw FileNotClosedError(path);
+    }
+    int fd = open(path.c_str(), O_RDWR);
+    // 更新打开列表
+    path2fd_[path] = fd;
+    fd2path_[fd] = path;
+    // 返回打开文件的句柄
+    return fd;
 }
 
 /**
@@ -136,7 +168,13 @@ void DiskManager::close_file(int fd) {
     // Todo:
     // 调用close()函数
     // 注意不能关闭未打开的文件，并且需要更新文件打开列表
-
+    if(!fd2path_.count(fd)) {  // 文件没有打开
+        throw FileNotOpenError(fd);
+    }
+    close(fd);
+    // 更新打开列表
+    path2fd_.erase(fd2path_[fd]);
+    fd2path_.erase(fd);
 }
 
 
